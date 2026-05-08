@@ -1,0 +1,159 @@
+REPLIT AGENT BRIEF: AuditCopilot
+1. APP OVERVIEW
+App name: AuditCopilot
+One-line description: An AI-assisted audit review tool that ingests healthcare accounts payable data, flags anomalies using forensic-accounting rules, and generates auditor-ready workpapers with plain-English risk narratives.
+Core problem it solves: Senior accountants and internal auditors at healthcare distributors and hospital systems spend 60–70% of their AP review time on manual scanning for ghost vendors, duplicate payments, FX misallocations, and split-PO patterns. AuditCopilot automates the detection layer (forensic rules) and the documentation layer (AI-drafted memos), so reviewers can focus on judgment-heavy decisions.
+Target user: Senior Accountants, Internal Auditors, External Audit Associates/Seniors, and Controllers at healthcare companies (pharma distributors, hospital systems, medical device firms). Secondary: AI-curious finance professionals building portfolios.
+2. FULL FEATURE LIST
+Core features (must build):
+
+CSV upload for AP transaction data (vendor name, invoice number, amount, date, currency, GL account, approver)
+Pre-loaded synthetic healthcare AP dataset (200+ rows with planted anomalies) so the app demos without any upload
+Forensic rule engine (pure Python, no AI) that flags:
+
+Duplicate vendors via fuzzy matching (e.g., "MedSupply Inc" vs "Med Supply Inc.")
+Benford's Law violations on invoice amounts (chi-square test on first-digit distribution)
+Round-dollar payments (amounts ending in .00 above a threshold)
+Weekend/holiday postings
+Split-PO patterns (multiple invoices from same vendor just under approval thresholds like $9,999 when threshold is $10K)
+FX misallocation flags (transactions where currency code doesn't match expected GL account currency)
+Duplicate invoice numbers across vendors
+
+
+Risk dashboard: total transactions reviewed, count of flags by category, dollar value at risk, top 10 highest-risk transactions
+Toggle: "Generate AI Audit Memo with Claude" — when enabled, sends each flagged transaction to the Anthropic API and returns a 3-sentence audit memo citing the relevant standard (AU-C 240 fraud, AU-C 315 risk assessment, IAS 21 FX) and a recommended testing procedure
+Export workpaper as Excel (.xlsx) with three tabs: Summary, Flagged Transactions, AI Memos
+Filter and sort flagged transactions by risk category, dollar amount, or vendor
+
+Nice-to-have (build if time permits):
+8. "Explain this flag" button on each transaction that opens a modal with rule logic explanation
+9. Sample story banner: "Inspired by a real $1.2M ghost vendor finding at a pharma distributor"
+10. Demo mode toggle that auto-walks the user through the seeded anomalies
+3. TECH STACK
+
+Language: Python 3.11
+Web framework: Streamlit (single-file, fast to build, looks polished out of the box, perfect for data apps)
+Data: pandas, numpy, scipy (for chi-square Benford test), rapidfuzz (for fuzzy vendor matching), openpyxl (for Excel export)
+AI: anthropic Python SDK (model: claude-sonnet-4-5)
+Charts: plotly (interactive, looks better than matplotlib by default)
+Deployment: Replit's built-in deployment (Streamlit on port 8501, configured in .replit)
+Secrets: ANTHROPIC_API_KEY stored in Replit Secrets, accessed via os.environ
+
+Do NOT use: React, Next.js, Flask, FastAPI, databases, or authentication. Streamlit only.
+4. PAGES & USER FLOW
+Single-page Streamlit app with sidebar navigation between four sections (use st.sidebar.radio):
+
+Home / Overview — landing page with project description, the "$1.2M ghost vendor" story banner, screenshots of what the tool does, and a "Try Demo Data" button that loads the seeded dataset and jumps to the Dashboard
+Upload & Run — file uploader for CSV, "Use Sample Data Instead" button, validation messages, and a "Run Audit" button that triggers the rule engine
+Risk Dashboard — KPI cards (total txns, total flags, $ at risk, # of high-risk vendors), Plotly bar chart of flags by category, Plotly histogram of invoice amounts with Benford expected line overlaid, sortable/filterable table of flagged transactions, "Generate AI Memos" toggle
+Export Workpaper — preview of the Excel output, "Download Workpaper" button, and a "What's in this file" explainer
+
+User flow: Home → click "Try Demo Data" → Risk Dashboard auto-populates → user toggles AI memos → reviews flags → clicks Export → downloads .xlsx.
+5. UI & DESIGN INSTRUCTIONS
+Color scheme (audit-professional, not generic SaaS):
+
+Primary: deep navy #0B2545
+Accent: muted gold #C9A961 (signals "audit / assurance")
+Risk colors: red #C73E3A (high), amber #E8A33D (medium), green #3C8D5C (low)
+Background: off-white #F7F6F2
+Text: charcoal #1F2937
+
+Fonts: Use Streamlit's default Source Sans Pro for body, but configure theme in .streamlit/config.toml with the colors above. Headers in bold.
+Layout:
+
+Wide layout (st.set_page_config(layout="wide"))
+KPI cards in a 4-column row at the top of Dashboard using st.columns(4) with st.metric()
+Tables use st.dataframe() with column config for currency and date formatting
+Charts side-by-side in 2-column grid
+
+Polish requirements:
+
+Every page has a header with the AuditCopilot logo emoji 🔍 and tagline
+Risk severity badges in the table (red/amber/green pills) using custom HTML in a column
+Loading spinner (st.spinner) when AI memos are being generated
+Success toast (st.toast) after Excel export
+
+Do NOT use: rainbow gradients, neon colors, generic stock illustrations, or "AI sparkle" emoji spam. This is an audit tool — it should look like Bloomberg Terminal meets a Big 4 deliverable.
+6. DATA & APIS
+Data model — synthetic healthcare AP dataset (sample_ap_data.csv, pre-create this file):
+Columns: transaction_id, vendor_name, vendor_id, invoice_number, invoice_date, posting_date, amount, currency, gl_account, gl_account_currency, approver, payment_method
+Generate 200 rows of realistic healthcare vendor data including:
+
+Real-sounding vendors: McKesson, Cardinal Health, AmerisourceBergen, Henry Schein, Medline Industries, Becton Dickinson, Stryker, plus 30+ smaller fictional ones
+Planted anomalies (label these clearly in code comments so judges/reviewers can verify):
+
+3 duplicate-vendor pairs (e.g., "MedSupply Inc" + "Med Supply Inc.", "ABC Pharma LLC" + "ABC Pharma L.L.C.")
+5 round-dollar payments above $50K
+4 weekend postings
+6 split-PO patterns (3 vendors with 2 invoices each at $9,500 and $9,800 against a $10K threshold)
+4 FX mismatches (USD invoice posted to a EUR-designated GL)
+2 duplicate invoice numbers across different vendors
+1 obvious ghost vendor with no street address and round-dollar payments
+
+
+
+APIs:
+
+Anthropic Messages API — endpoint https://api.anthropic.com/v1/messages, model claude-sonnet-4-5, max_tokens 400 per memo, system prompt: "You are a senior internal auditor at a healthcare distribution company. Given a flagged AP transaction and the rule that flagged it, write a 3-sentence audit memo citing the relevant auditing standard (AU-C 240 for fraud, AU-C 315 for risk, IAS 21 for FX) and recommending one specific testing procedure. Be concise and use professional audit language."
+
+No other external APIs needed.
+7. STEP-BY-STEP BUILD INSTRUCTIONS FOR REPLIT AGENT
+Build in this exact order. Do not skip steps. Test after each step.
+Step 1 — Project setup:
+
+Create main.py, rules.py, ai_memo.py, data_generator.py, excel_export.py, .streamlit/config.toml, requirements.txt
+requirements.txt contents: streamlit, pandas, numpy, scipy, rapidfuzz, openpyxl, plotly, anthropic
+.streamlit/config.toml: configure theme with the navy/gold color scheme above
+.replit run command: streamlit run main.py --server.port 8501 --server.address 0.0.0.0
+
+Step 2 — Generate sample data:
+
+In data_generator.py, write a function generate_sample_data() that produces the 200-row dataset described in section 6 with all planted anomalies. Save as sample_ap_data.csv on first run if it doesn't exist. Comment each planted anomaly inline.
+
+Step 3 — Build the rule engine in rules.py:
+
+Function detect_duplicate_vendors(df) — uses rapidfuzz.fuzz.ratio with threshold 85
+Function benford_test(df) — first-digit distribution chi-square test, returns p-value and flagged outliers
+Function detect_round_dollar(df, threshold=50000)
+Function detect_weekend_postings(df) — uses posting_date.dt.dayofweek >= 5
+Function detect_split_po(df, approval_threshold=10000, window_pct=0.10) — flags vendors with 2+ invoices within 10% below the threshold in a 30-day window
+Function detect_fx_mismatch(df) — flags rows where currency != gl_account_currency
+Function detect_duplicate_invoice_numbers(df)
+Master function run_all_rules(df) returns a unified DataFrame with columns flag_category, risk_level (High/Medium/Low), rule_explanation
+
+Step 4 — Build the AI memo generator in ai_memo.py:
+
+Function generate_memo(transaction_dict, flag_category) calls Anthropic API
+Read API key from os.environ.get("ANTHROPIC_API_KEY") — if missing, return graceful message: "AI memos disabled — add ANTHROPIC_API_KEY in Secrets to enable"
+Wrap in try/except, return user-friendly error if API call fails
+Cache results with @st.cache_data keyed on transaction_id
+
+Step 5 — Build Excel export in excel_export.py:
+
+Function build_workpaper(df_all, df_flagged, memos_dict) returns a BytesIO Excel file with 3 tabs: Summary, Flagged Transactions, AI Memos
+Format currency columns, freeze header rows, apply navy header fill
+
+Step 6 — Build Streamlit UI in main.py:
+
+st.set_page_config(page_title="AuditCopilot", page_icon="🔍", layout="wide")
+Sidebar radio for the 4 pages
+Home page: hero text, the "$1.2M ghost vendor" story banner, "Try Demo Data" button that sets st.session_state.demo_loaded = True and switches page
+Upload page: st.file_uploader, "Use Sample Data" button, "Run Audit" button
+Dashboard page: 4 KPI metric cards, 2 Plotly charts side-by-side (flags-by-category bar, Benford histogram), filterable dataframe with risk-level color badges, "Generate AI Memos" toggle that loops through flagged rows with st.spinner and st.progress
+Export page: download button using the BytesIO from build_workpaper
+
+Step 7 — Polish pass:
+
+Add st.toast("Workpaper exported!") after download
+Add a footer with "Built by Bhoomika Bothra | CA, ICAI | github.com/[username]"
+Test the full flow end-to-end: Home → Demo Data → Dashboard → Toggle AI → Export
+Verify the Excel file opens cleanly in Excel/Numbers
+
+Step 8 — Final QA checklist before declaring done:
+
+App loads with no errors when ANTHROPIC_API_KEY is missing
+All 6 anomaly types are visibly flagged in the demo data
+KPI numbers match the underlying data
+Excel export downloads and opens correctly
+No Streamlit warnings in the console
+README.md created with screenshots, setup instructions, and the elevator pitch
