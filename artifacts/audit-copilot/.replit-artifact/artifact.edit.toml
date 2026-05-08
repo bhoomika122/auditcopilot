@@ -1,0 +1,12 @@
+kind = "web"
+previewPath = "/"
+title = "AuditCopilot"
+version = "1.0.0"
+
+[[services]]
+localPort = 8080
+name = "AuditCopilot"
+paths = ["/"]
+
+[services.development]
+run = "cd artifacts/audit-copilot && streamlit run main.py --server.port 8080 --server.address 0.0.0.0"
