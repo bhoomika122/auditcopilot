@@ -1,4 +1,5 @@
 import os
+import traceback
 import streamlit as st
 
 SYSTEM_PROMPT = (
@@ -22,13 +23,18 @@ STANDARD_MAPPING = {
 
 def _build_prompt(transaction_dict: dict, flag_category: str) -> str:
     standard = STANDARD_MAPPING.get(flag_category, "AU-C 240")
+    # Explicitly cast amount to float — it may arrive as a string from JSON serialisation
+    try:
+        amount = float(transaction_dict.get("amount", 0))
+    except (ValueError, TypeError):
+        amount = 0.0
     lines = [
         f"Flag category: {flag_category}",
         f"Relevant standard: {standard}",
         f"Transaction ID: {transaction_dict.get('transaction_id', 'N/A')}",
         f"Vendor: {transaction_dict.get('vendor_name', 'N/A')}",
         f"Invoice number: {transaction_dict.get('invoice_number', 'N/A')}",
-        f"Amount: ${transaction_dict.get('amount', 0):,.2f}",
+        f"Amount: ${amount:,.2f}",
         f"Currency: {transaction_dict.get('currency', 'N/A')}",
         f"Invoice date: {transaction_dict.get('invoice_date', 'N/A')}",
         f"Posting date: {transaction_dict.get('posting_date', 'N/A')}",
@@ -40,18 +46,25 @@ def _build_prompt(transaction_dict: dict, flag_category: str) -> str:
 
 @st.cache_data(show_spinner=False)
 def generate_memo(transaction_id: str, transaction_json: str, flag_category: str) -> str:
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return (
-            "⚠️ **AI memos disabled** — add your `ANTHROPIC_API_KEY` in the "
-            "Secrets panel (Tools → Secrets) to enable AI-generated audit memos."
-        )
-
-    import json
-    transaction_dict = json.loads(transaction_json)
-
     try:
-        import anthropic
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            return (
+                "⚠️ **AI memos disabled** — add your `ANTHROPIC_API_KEY` in the "
+                "Secrets panel (Tools → Secrets) to enable AI-generated audit memos."
+            )
+
+        import json
+        transaction_dict = json.loads(transaction_json)
+
+        try:
+            import anthropic
+        except ImportError:
+            return (
+                "⚠️ **anthropic package not installed.** "
+                "Run `pip install anthropic` and restart the app."
+            )
+
         client = anthropic.Anthropic(api_key=api_key)
         user_content = _build_prompt(transaction_dict, flag_category)
         message = client.messages.create(
@@ -61,10 +74,7 @@ def generate_memo(transaction_id: str, transaction_json: str, flag_category: str
             messages=[{"role": "user", "content": user_content}],
         )
         return message.content[0].text
-    except ImportError:
-        return (
-            "⚠️ **anthropic package not installed.** "
-            "Run `pip install anthropic` and restart the app."
-        )
+
     except Exception as e:
+        traceback.print_exc()
         return f"⚠️ **AI memo generation failed:** {str(e)}"
