@@ -1,0 +1,13 @@
+*.ts linguist-vendored
+*.tsx linguist-vendored
+*.js linguist-vendored
+*.json linguist-vendored
+*.html linguist-vendored
+*.css linguist-vendored
+package.json linguist-vendored
+pnpm-lock.yaml linguist-generated
+uv.lock linguist-generated
+tsconfig*.json linguist-vendored
+.npmrc linguist-vendored
+attached_assets/* linguist-vendored
+artifacts/* linguist-vendored
