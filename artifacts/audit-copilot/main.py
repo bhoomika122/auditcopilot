@@ -77,6 +77,10 @@ if "audit_run" not in st.session_state:
     st.session_state.audit_run = False
 if "benford_summary" not in st.session_state:
     st.session_state.benford_summary = None
+if "workpaper_buf" not in st.session_state:
+    st.session_state.workpaper_buf = None
+if "memo_toggle" not in st.session_state:
+    st.session_state.memo_toggle = False
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -88,6 +92,8 @@ def load_demo_data():
         st.session_state.benford_summary = benford_test(df)
     st.session_state.audit_run = True
     st.session_state.ai_memos = {}
+    st.session_state.memo_toggle = False
+    st.session_state.workpaper_buf = None
     st.session_state.page = "Risk Dashboard"
     st.rerun()
 
@@ -258,6 +264,8 @@ elif page == "Upload & Run":
                             st.session_state.benford_summary = benford_test(df_up)
                         st.session_state.audit_run = True
                         st.session_state.ai_memos = {}
+                        st.session_state.memo_toggle = False
+                        st.session_state.workpaper_buf = None
                         st.session_state.page = "Risk Dashboard"
                         st.toast("Audit complete! Switching to dashboard.")
                         st.rerun()
@@ -504,7 +512,7 @@ elif page == "Risk Dashboard":
 
     generate_memos_toggle = st.toggle(
         "Generate AI Audit Memos with Claude",
-        value=False,
+        key="memo_toggle",
         help="Sends each flagged transaction to Claude for a 3-sentence audit memo citing the relevant standard.",
     )
 
@@ -611,18 +619,30 @@ elif page == "Export Workpaper":
         - Professional Calibri font
         """)
 
-        if st.button("⬇️ Generate & Download Workpaper", type="primary", use_container_width=True):
+        memo_count = len(st.session_state.ai_memos)
+        if memo_count:
+            st.success(f"✓ {memo_count} AI memo{'s' if memo_count != 1 else ''} ready for export")
+        else:
+            st.info("No AI memos generated yet. Toggle the AI Memo Generator on the Risk Dashboard first.")
+
+        if st.button("⬇️ Build Workpaper", type="primary", use_container_width=True):
             with st.spinner("Building Excel workpaper…"):
-                buf = build_workpaper(df_all, df_flagged if df_flagged is not None else pd.DataFrame(), memos)
+                buf = build_workpaper(
+                    df_all,
+                    df_flagged if df_flagged is not None else pd.DataFrame(),
+                    st.session_state.ai_memos,
+                )
+                st.session_state.workpaper_buf = buf.getvalue()
+            st.toast("✅ Workpaper ready — click Download below.")
+
+        if st.session_state.workpaper_buf:
             st.download_button(
-                label="📥 Click to Download AuditCopilot_Workpaper.xlsx",
-                data=buf,
+                label="📥 Download AuditCopilot_Workpaper.xlsx",
+                data=st.session_state.workpaper_buf,
                 file_name="AuditCopilot_Workpaper.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
-                type="primary",
             )
-            st.toast("✅ Workpaper exported successfully!")
 
         st.markdown("---")
         st.markdown("### What's in this file?")
