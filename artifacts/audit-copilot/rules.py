@@ -37,7 +37,11 @@ def detect_duplicate_vendors(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(results)
 
 
-def benford_test(df: pd.DataFrame) -> pd.DataFrame:
+def benford_test(df: pd.DataFrame) -> dict:
+    """
+    Dataset-level Benford's Law analysis. Returns a summary dict — NOT individual row flags.
+    Call this separately from run_all_rules() and display the result as a chart insight.
+    """
     amounts = df["amount"].dropna()
     amounts = amounts[amounts > 0]
 
@@ -51,32 +55,33 @@ def benford_test(df: pd.DataFrame) -> pd.DataFrame:
     observed_counts = np.array([
         (digits == d).sum() for d in range(1, 10)
     ])
-    n = observed_counts.sum()
+    n = int(observed_counts.sum())
     expected_probs = np.array([np.log10(1 + 1 / d) for d in range(1, 10)])
     expected_counts = expected_probs * n
 
     chi2, p_value = stats.chisquare(observed_counts, expected_counts)
+    observed_freq = observed_counts / n if n > 0 else expected_probs
 
-    results = []
-    if p_value < 0.05:
-        observed_freq = observed_counts / n
-        for d in range(1, 10):
-            deviation = abs(observed_freq[d - 1] - expected_probs[d - 1])
-            if deviation > 0.04:
-                flagged_txns = df[df["amount"].apply(first_digit) == d]
-                for idx, row in flagged_txns.iterrows():
-                    results.append({
-                        "transaction_id": row["transaction_id"],
-                        "flag_category": "Benford's Law Violation",
-                        "risk_level": "Medium",
-                        "rule_explanation": (
-                            f"Invoice amount ${row['amount']:,.2f} starts with digit '{d}'. "
-                            f"Benford's Law chi-square test yields p={p_value:.4f} (< 0.05), "
-                            f"suggesting potential manipulation. Digit '{d}' observed at "
-                            f"{observed_freq[d-1]*100:.1f}% vs expected {expected_probs[d-1]*100:.1f}%."
-                        ),
-                    })
-    return pd.DataFrame(results)
+    if p_value < 0.001:
+        interpretation = "distribution deviates significantly from expected — warrants further investigation"
+        severity = "high"
+    elif p_value < 0.05:
+        interpretation = "distribution shows moderate deviation from expected"
+        severity = "medium"
+    else:
+        interpretation = "distribution conforms to Benford's Law"
+        severity = "low"
+
+    return {
+        "chi2": float(chi2),
+        "p_value": float(p_value),
+        "n": n,
+        "observed_freq": observed_freq.tolist(),
+        "expected_probs": expected_probs.tolist(),
+        "digits": list(range(1, 10)),
+        "interpretation": interpretation,
+        "severity": severity,
+    }
 
 
 def detect_round_dollar(df: pd.DataFrame, threshold: float = ROUND_DOLLAR_THRESHOLD) -> pd.DataFrame:
@@ -212,7 +217,6 @@ def run_all_rules(df: pd.DataFrame) -> pd.DataFrame:
 
     checks = [
         ("Duplicate Vendor", detect_duplicate_vendors),
-        ("Benford's Law", benford_test),
         ("Round-Dollar", detect_round_dollar),
         ("Weekend Posting", detect_weekend_postings),
         ("Split-PO", detect_split_po),

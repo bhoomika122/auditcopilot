@@ -7,7 +7,7 @@ import json
 import os
 
 from data_generator import generate_sample_data
-from rules import run_all_rules
+from rules import run_all_rules, benford_test
 from ai_memo import generate_memo
 from excel_export import build_workpaper
 
@@ -75,6 +75,8 @@ if "page" not in st.session_state:
     st.session_state.page = "Home"
 if "audit_run" not in st.session_state:
     st.session_state.audit_run = False
+if "benford_summary" not in st.session_state:
+    st.session_state.benford_summary = None
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ def load_demo_data():
     st.session_state.df_raw = df
     with st.spinner("Running forensic rule engine…"):
         st.session_state.df_flagged = run_all_rules(df)
+        st.session_state.benford_summary = benford_test(df)
     st.session_state.audit_run = True
     st.session_state.ai_memos = {}
     st.session_state.page = "Risk Dashboard"
@@ -252,6 +255,7 @@ elif page == "Upload & Run":
                         st.session_state.df_raw = df_up
                         with st.spinner("Running forensic rule engine…"):
                             st.session_state.df_flagged = run_all_rules(df_up)
+                            st.session_state.benford_summary = benford_test(df_up)
                         st.session_state.audit_run = True
                         st.session_state.ai_memos = {}
                         st.session_state.page = "Risk Dashboard"
@@ -368,39 +372,59 @@ elif page == "Risk Dashboard":
         st.plotly_chart(fig_bar, use_container_width=True)
 
     with ch2:
-        st.markdown("#### Invoice Amount Distribution vs. Benford's Law")
-        amounts = df_all["amount"].dropna()
-        amounts = amounts[amounts > 0]
-        observed, n_total = first_digit_dist(amounts.tolist())
-        expected = benford_expected_probs()
-        digits = list(range(1, 10))
+        st.markdown("#### Benford's Law — Dataset Analysis")
+        bsummary = st.session_state.benford_summary
+        if bsummary:
+            digits = bsummary["digits"]
+            observed = bsummary["observed_freq"]
+            expected = bsummary["expected_probs"]
+            p_val = bsummary["p_value"]
+            interpretation = bsummary["interpretation"]
+            severity = bsummary["severity"]
 
-        fig_benford = go.Figure()
-        fig_benford.add_trace(go.Bar(
-            x=digits,
-            y=[o * 100 for o in observed],
-            name="Observed",
-            marker_color="#0B2545",
-            opacity=0.7,
-        ))
-        fig_benford.add_trace(go.Scatter(
-            x=digits,
-            y=[e * 100 for e in expected],
-            name="Benford Expected",
-            mode="lines+markers",
-            line=dict(color="#C9A961", width=2, dash="dash"),
-            marker=dict(size=6),
-        ))
-        fig_benford.update_layout(
-            xaxis=dict(title="First Digit", tickvals=digits),
-            yaxis=dict(title="Frequency (%)"),
-            template="plotly_white",
-            plot_bgcolor="#F7F6F2",
-            paper_bgcolor="#F7F6F2",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=30, b=10),
-        )
-        st.plotly_chart(fig_benford, use_container_width=True)
+            fig_benford = go.Figure()
+            fig_benford.add_trace(go.Bar(
+                x=digits,
+                y=[o * 100 for o in observed],
+                name="Observed",
+                marker_color="#0B2545",
+                opacity=0.7,
+            ))
+            fig_benford.add_trace(go.Scatter(
+                x=digits,
+                y=[e * 100 for e in expected],
+                name="Benford Expected",
+                mode="lines+markers",
+                line=dict(color="#C9A961", width=2, dash="dash"),
+                marker=dict(size=6),
+            ))
+            fig_benford.update_layout(
+                xaxis=dict(title="First Digit", tickvals=digits),
+                yaxis=dict(title="Frequency (%)"),
+                template="plotly_white",
+                plot_bgcolor="#F7F6F2",
+                paper_bgcolor="#F7F6F2",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(t=30, b=10),
+            )
+            st.plotly_chart(fig_benford, use_container_width=True)
+
+            insight_colors = {
+                "high": ("#fde8e8", "#7f1d1d", "⚠️"),
+                "medium": ("#fef3c7", "#78350f", "⚡"),
+                "low": ("#d1fae5", "#064e3b", "✅"),
+            }
+            bg, fg, icon = insight_colors.get(severity, ("#f3f4f6", "#1f2937", "ℹ️"))
+            p_display = f"{p_val:.4f}" if p_val >= 0.0001 else f"{p_val:.2e}"
+            st.markdown(
+                f'<div style="background:{bg};color:{fg};border-radius:6px;padding:10px 14px;'
+                f'font-size:0.85rem;margin-top:-8px;">'
+                f'{icon} <strong>Dataset Benford p-value: {p_display}</strong> — {interpretation} '
+                f'(n={bsummary["n"]:,} invoices analyzed). '
+                f'Note: Benford\'s Law is a dataset-level indicator only; individual rows are not flagged for this.'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
 
     # ── Flagged Transactions Table ────────────────────────────────────────────
     st.markdown("---")
