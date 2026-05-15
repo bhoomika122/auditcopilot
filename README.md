@@ -2,9 +2,9 @@
 
 **AI-assisted forensic AP review for healthcare finance teams.**
 
-AuditCopilot ingests accounts payable transaction data, runs a forensic accounting rule engine to flag anomalies, and generates auditor-ready workpaper memos using Claude — citing AU-C 240 (fraud), AU-C 315 (risk assessment), and IAS 21 (FX) standards.
+AuditCopilot ingests accounts payable transaction data, runs a forensic accounting rule engine to flag anomalies, and generates auditor-ready workpaper memos using Claude, citing AU-C 240 (fraud), AU-C 315 (risk assessment), and IAS 21 (FX) standards.
 
-> Built by **Bhoomika Bothra** — Chartered Accountant (ICAI), MS Accounting & Analytics (Seattle University), CPA Candidate.
+> Built by **Bhoomika Bothra**. CA Finalist (ICAI, Group 1 cleared), MS Accounting and Analytics (Seattle University), CPA Candidate.
 
 📂 **Application source code:** [`artifacts/audit-copilot/`](./artifacts/audit-copilot)
 
